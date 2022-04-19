@@ -19,14 +19,14 @@ import org.springframework.data.couchbase.core.mapping.CouchbaseDocument;
 import org.springframework.data.couchbase.core.mapping.event.CouchbaseMappingEvent;
 
 /**
- *
  * @author Michael Reiche
  */
 public interface TemplateSupport {
 
 	CouchbaseDocument encodeEntity(Object entityToEncode);
 
-	<T> T decodeEntity(String id, String source, Long cas, Class<T> entityClass, String scope, String collection);
+	<T> T decodeEntity(String id, String source, Long cas, Class<T> entityClass, String scope, String collection,
+			boolean notUnique);
 
 	<T> T applyUpdatedCas(T entity, CouchbaseDocument converted, long cas);
 

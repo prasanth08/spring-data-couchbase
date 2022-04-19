@@ -39,6 +39,7 @@ import org.springframework.data.couchbase.core.mapping.event.BeforeSaveEvent;
 import org.springframework.data.couchbase.core.mapping.event.CouchbaseMappingEvent;
 import org.springframework.data.couchbase.core.mapping.event.ReactiveAfterConvertCallback;
 import org.springframework.data.couchbase.core.mapping.event.ReactiveBeforeConvertCallback;
+import org.springframework.data.couchbase.core.support.TemplateUtils;
 import org.springframework.data.couchbase.repository.support.MappingCouchbaseEntityInformation;
 import org.springframework.data.mapping.PersistentPropertyAccessor;
 import org.springframework.data.mapping.callback.EntityCallbacks;
@@ -47,6 +48,8 @@ import org.springframework.data.mapping.context.MappingContext;
 import org.springframework.data.mapping.model.ConvertingPropertyAccessor;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+
+import com.couchbase.client.core.error.CouchbaseException;
 
 /**
  * Internal encode/decode support for {@link ReactiveCouchbaseTemplate}.
@@ -85,11 +88,20 @@ class ReactiveCouchbaseTemplateSupport implements ApplicationContextAware, React
 	}
 
 	@Override
-	public <T> Mono<T> decodeEntity(String id, String source, Long cas, Class<T> entityClass, String scope,
-			String collection) {
+	public <T> Mono<T> decodeEntity(String inId, String source, Long inCas, Class<T> entityClass, String scope,
+			String collection, boolean notUnique) {
 		return Mono.fromSupplier(() -> {
-			final CouchbaseDocument converted = new CouchbaseDocument(id);
-			converted.setId(id);
+
+			// this is the entity class defined for the repository. It may not be the class of the document that was read
+			// we will reset it after reading the document
+			//
+			// This will fail for the case where:
+			// 1) The version is defined in the concrete class, but not in the abstract class; and
+			// 2) The constructor takes a "long version" argument resulting in an exception would be thrown if version in
+			// the source is null.
+			// We could expose from the MappingCouchbaseConverter determining the persistent entity from the source,
+			// but that is a lot of work to do every time just for this very rare and avoidable case.
+			// TypeInformation<? extends R> typeToUse = typeMapper.readType(source, type);
 
 			CouchbasePersistentEntity persistentEntity = couldBePersistentEntity(entityClass);
 
@@ -98,20 +110,69 @@ class ReactiveCouchbaseTemplateSupport implements ApplicationContextAware, React
 				// to unwrap. This results in List<String[]> being unwrapped past String[] to String, so this may also be a
 				// Collection (or Array) of entityClass. We have no way of knowing - so just assume it is what we are told.
 				// if this is a Collection or array, only the first element will be returned.
+				final CouchbaseDocument converted = new CouchbaseDocument(inId);
 				Set<Map.Entry<String, Object>> set = ((CouchbaseDocument) translationService.decode(source, converted))
 						.getContent().entrySet();
 				return (T) set.iterator().next().getValue();
 			}
 
-			if (cas != 0 && persistentEntity.getVersionProperty() != null) {
-				converted.put(persistentEntity.getVersionProperty().getName(), cas);
-			}
+			final CouchbaseDocument converted = new CouchbaseDocument(null);
 
-			T readEntity = converter.read(entityClass, (CouchbaseDocument) translationService.decode(source, converted));
+			// if the constructor has an argument that is long version, then construction will fail if the 'version'
+			// is not available as 'null' is not a legal value for a long. Changing the arg to "Long version" would solve
+			// this.
+			// (Version doesn't come from 'source', it comes from the cas argument to decodeEntity)
+			CouchbaseDocument doc = (CouchbaseDocument) translationService.decode(source, converted);
+
+			String id = inId;
+			Long cas = inCas;
+			if (notUnique) {
+				id = "";
+				cas = Long.valueOf(0);
+			} else if (id == null) {
+				Map<String, Object> content = converted.getContent();
+				id = (String) content.get(TemplateUtils.SELECT_ID);
+				if (id != null) {
+					content.remove(TemplateUtils.SELECT_ID);
+				} else {
+					id = (String) content.get(TemplateUtils.SELECT_ID_3x);
+					content.remove(TemplateUtils.SELECT_ID_3x);
+				}
+				cas = (Long) content.get(TemplateUtils.SELECT_CAS);
+				if (cas != null) {
+					content.remove(TemplateUtils.SELECT_CAS);
+				} else {
+					cas = (Long) content.get(TemplateUtils.SELECT_CAS_3x);
+					content.remove(TemplateUtils.SELECT_CAS_3x);
+				}
+			}
+			if (persistentEntity.getVersionProperty() != null && cas != null) {
+				doc.getContent().put(persistentEntity.getVersionProperty().getField().getName(), cas);
+			}
+			T readEntity = converter.read(entityClass, doc);
+			persistentEntity = couldBePersistentEntity(readEntity.getClass());
 			final ConvertingPropertyAccessor<T> accessor = getPropertyAccessor(readEntity);
 
+			if (id == null) {
+				throw new CouchbaseException(TemplateUtils.SELECT_ID + " was null. Either use #{#n1ql.selectEntity} or project "
+						+ TemplateUtils.SELECT_ID);
+			}
+			accessor.setProperty(persistentEntity.getIdProperty(), id);
+
+			// if possible, set the version property in the source so that if the constructor has a long version argument,
+			// it will have a value and not fail (as null is not a valid argument for a long argument). This possible failure
+			// can be avoid by defining the argument as Long instead of long.
+			// persistentEntity is still the (possibly abstract) class specified in the repository definition
+			// it's possible that the abstract class does not have a version property, and this won't be able to set the
+			// version
 			if (persistentEntity.getVersionProperty() != null) {
-				accessor.setProperty(persistentEntity.getVersionProperty(), cas);
+				if (cas == null) {
+					throw new CouchbaseException("version/cas in the entity but " + TemplateUtils.SELECT_CAS
+							+ " was not in result. Either use #{#n1ql.selectEntity} or project " + TemplateUtils.SELECT_CAS);
+				}
+				if (cas != 0) {
+					accessor.setProperty(persistentEntity.getVersionProperty(), cas);
+				}
 			}
 			N1qlJoinResolver.handleProperties(persistentEntity, accessor, template, id, scope, collection);
 			return accessor.getBean();

@@ -90,8 +90,9 @@ public class ReactiveFindByIdOperationSupport implements ReactiveFindByIdOperati
 				} else {
 					return reactive.get(docId, (GetOptions) pArgs.getOptions());
 				}
-			}).flatMap(result -> support.decodeEntity(id, result.contentAs(String.class), result.cas(), domainType,
-					pArgs.getScope(), pArgs.getCollection())).onErrorResume(throwable -> {
+			}).flatMap(result -> support.decodeEntity(id, result.contentAs(
+					String.class), result.cas(), domainType,
+					pArgs.getScope(), pArgs.getCollection(), false)).onErrorResume(throwable -> {
 						if (throwable instanceof RuntimeException) {
 							if (throwable instanceof DocumentNotFoundException) {
 								return Mono.empty();

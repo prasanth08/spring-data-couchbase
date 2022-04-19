@@ -22,7 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.couchbase.core.query.Query;
 import org.springframework.data.couchbase.core.support.PseudoArgs;
-import org.springframework.data.couchbase.core.support.TemplateUtils;
 import org.springframework.util.Assert;
 
 import com.couchbase.client.java.query.QueryOptions;
@@ -182,27 +181,11 @@ public class ReactiveFindByQueryOperationSupport implements ReactiveFindByQueryO
 				} else {
 					return throwable;
 				}
-			}).flatMapMany(ReactiveQueryResult::rowsAsObject).flatMap(row -> {
+			}).flatMapMany(r -> r.rowsAs(String.class)).flatMap(row -> {
 				String id = null;
 				Long cas = null;
-				if (query.isDistinct() || distinctFields != null) {
-					id = "";
-					cas = Long.valueOf(0);
-				} else {
-					id = row.getString(TemplateUtils.SELECT_ID);
-					if (id == null) {
-						id = row.getString(TemplateUtils.SELECT_ID_3x);
-						row.removeKey(TemplateUtils.SELECT_ID_3x);
-					}
-					cas = row.getLong(TemplateUtils.SELECT_CAS);
-					if (cas == null) {
-						cas = row.getLong(TemplateUtils.SELECT_CAS_3x);
-						row.removeKey(TemplateUtils.SELECT_CAS_3x);
-					}
-					row.removeKey(TemplateUtils.SELECT_ID);
-					row.removeKey(TemplateUtils.SELECT_CAS);
-				}
-				return support.decodeEntity(id, row.toString(), cas, returnType, pArgs.getScope(), pArgs.getCollection());
+				return support.decodeEntity(id, row, cas, returnType, pArgs.getScope(), pArgs.getCollection(),
+						query.isDistinct() || distinctFields != null);
 			}));
 		}
 

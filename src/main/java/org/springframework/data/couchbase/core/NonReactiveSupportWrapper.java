@@ -41,8 +41,8 @@ public class NonReactiveSupportWrapper implements ReactiveTemplateSupport {
 
 	@Override
 	public <T> Mono<T> decodeEntity(String id, String source, Long cas, Class<T> entityClass, String scope,
-			String collection) {
-		return Mono.fromSupplier(() -> support.decodeEntity(id, source, cas, entityClass, scope, collection));
+			String collection, boolean notUnique) {
+		return Mono.fromSupplier(() -> support.decodeEntity(id, source, cas, entityClass, scope, collection, notUnique));
 	}
 
 	@Override
