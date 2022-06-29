@@ -16,6 +16,7 @@
 
 package org.springframework.data.couchbase.repository.support;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -162,33 +163,41 @@ public class SimpleCouchbaseRepository<T, ID> extends CouchbaseRepositoryBase<T,
 	}
 
 	@Override
-	public List<T> findAll() {
+	public Iterable<T> findAll() {
 		return findAll(new Query());
 	}
 
 	@Override
-	public List<T> findAll(Sort sort) {
+	public Iterable<T> findAll(Sort sort) {
 		return findAll(new Query().with(sort));
 	}
 
 	@Override
-	public List<T> findAll(QueryScanConsistency queryScanConsistency) {
+	public Iterable<T> findAll(QueryScanConsistency queryScanConsistency) {
 		return findAll(new Query().scanConsistency(queryScanConsistency));
 	}
 
 	@Override
 	public Page<T> findAll(Pageable pageable) {
-		List<T> results = findAll(new Query().with(pageable));
-		return new PageImpl<>(results, pageable, count());
+		Iterable<T> results = findAll(new Query().with(pageable));
+		List<T> resultsList;
+		if (results instanceof List<T>) {
+			resultsList = (List<T>) results;
+		} else {
+			resultsList = new ArrayList<>();
+			results.forEach(resultsList::add);
+		}
+		return new PageImpl<>(resultsList, pageable, count());
 	}
 
 	/**
-	 * Helper method to assemble a n1ql find all query, taking annotations into acocunt.
+	 * Helper method to assemble a n1ql find all query, taking annotations into account.
 	 *
 	 * @param query the originating query.
 	 * @return the list of found entities, already executed.
 	 */
-	private List<T> findAll(Query query) {
+	@Override
+	public Iterable<T> findAll(Query query) {
 		return operations.findByQuery(getJavaType()).withConsistency(getQueryScanConsistency()).inScope(getScope())
 				.inCollection(getCollection()).matching(query).all();
 	}

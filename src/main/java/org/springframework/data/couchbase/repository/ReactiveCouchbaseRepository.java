@@ -15,11 +15,14 @@
  */
 package org.springframework.data.couchbase.repository;
 
+import com.couchbase.client.java.query.QueryScanConsistency;
 import org.springframework.data.couchbase.core.ReactiveCouchbaseOperations;
+import org.springframework.data.couchbase.core.query.Query;
 import org.springframework.data.couchbase.repository.query.CouchbaseEntityInformation;
 import org.springframework.data.repository.NoRepositoryBean;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import org.springframework.data.repository.reactive.ReactiveSortingRepository;
+import reactor.core.publisher.Flux;
 
 /**
  * Couchbase-specific {@link ReactiveSortingRepository} implementation.
@@ -31,7 +34,12 @@ import org.springframework.data.repository.reactive.ReactiveSortingRepository;
 @NoRepositoryBean
 public interface ReactiveCouchbaseRepository<T, ID>
 		extends ReactiveSortingRepository<T, ID>, ReactiveCrudRepository<T, ID> {
-	ReactiveCouchbaseOperations getOperations();
+
+  Flux<T> findAll(QueryScanConsistency queryScanConsistency);
+
+  Flux<T> findAll(Query query);
+
+  ReactiveCouchbaseOperations getOperations();
 
 	CouchbaseEntityInformation<T, String> getEntityInformation();
 }

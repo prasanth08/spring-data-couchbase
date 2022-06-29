@@ -16,6 +16,7 @@
 
 package org.springframework.data.couchbase.repository.support;
 
+import com.couchbase.client.java.query.QueryScanConsistency;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -71,6 +72,11 @@ public class SimpleReactiveCouchbaseRepository<T, ID> extends CouchbaseRepositor
 	@Override
 	public Flux<T> findAll(Sort sort) {
 		return findAll(new Query().with(sort));
+	}
+
+	@Override
+	public Flux<T> findAll(QueryScanConsistency queryScanConsistency) {
+		return findAll(new Query().scanConsistency(queryScanConsistency));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -237,7 +243,8 @@ public class SimpleReactiveCouchbaseRepository<T, ID> extends CouchbaseRepositor
 				.inCollection(getCollection()).count();
 	}
 
-	private Flux<T> findAll(Query query) {
+	@Override
+	public Flux<T> findAll(Query query) {
 		return operations.findByQuery(getJavaType()).withConsistency(getQueryScanConsistency()).inScope(getScope())
 				.inCollection(getCollection()).matching(query).all();
 	}

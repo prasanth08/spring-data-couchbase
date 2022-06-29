@@ -91,7 +91,7 @@ class ReactiveCouchbaseTemplateKeyValueIntegrationTests extends JavaIntegrationT
 					.one(user1.getId()).block();
 			user1.setVersion(foundUser.getVersion());// version will have changed
 			assertEquals(user1, foundUser);
-			sleepMs(2000);
+			sleepMs(3000);
 
 			Collection<User> foundUsers = (Collection<User>) reactiveCouchbaseTemplate.findById(User.class)
 					.all(Arrays.asList(user1.getId(), user2.getId())).collectList().block();

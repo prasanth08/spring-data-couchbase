@@ -36,6 +36,7 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -356,6 +357,9 @@ public class CouchbaseRepositoryQueryIntegrationTests extends ClusterAwareIntegr
 
 	@Test
 	public void saveNotBoundedWithDefaultRepository() {
+		if (config().isUsingCloud()) { // I don't think the query following the insert will be quick enough for the test
+			return;
+		}
 		airportRepository.withOptions(QueryOptions.queryOptions().scanConsistency(REQUEST_PLUS)).deleteAll();
 		ApplicationContext ac = new AnnotationConfigApplicationContext(Config.class);
 		// the Config class has been modified, these need to be loaded again
@@ -363,16 +367,21 @@ public class CouchbaseRepositoryQueryIntegrationTests extends ClusterAwareIntegr
 		AirportRepositoryScanConsistencyTest airportRepositoryRP = (AirportRepositoryScanConsistencyTest) ac
 				.getBean("airportRepositoryScanConsistencyTest");
 
-		List<Airport> sizeBeforeTest = airportRepositoryRP.findAll();
+		List<Airport> sizeBeforeTest = (List<Airport>)airportRepositoryRP.findAll();
 		assertEquals(0, sizeBeforeTest.size());
 
-		Airport vie = new Airport("airports::vie", "vie", "low9");
-		Airport saved = airportRepositoryRP.save(vie);
-		List<Airport> allSaved = airportRepositoryRP.findAll();
-		couchbaseTemplate.removeById(Airport.class).one(saved.getId());
-		if (!config().isUsingCloud()) {
-			assertTrue(allSaved.isEmpty(), "should not have been empty");
+		boolean notFound = false;
+		for (int i = 0; i < 100; i++) {
+			Airport vie = new Airport("airports::vie", "vie", "low9");
+			Airport saved = airportRepositoryRP.save(vie);
+			List<Airport> allSaved = (List<Airport>)airportRepositoryRP.findAll();
+			couchbaseTemplate.removeById(Airport.class).one(saved.getId());
+			if (allSaved.isEmpty()) {
+				notFound = true;
+				break;
+			}
 		}
+		assertTrue(notFound, "the doc should not have been found. maybe");
 	}
 
 	@Test
@@ -383,14 +392,14 @@ public class CouchbaseRepositoryQueryIntegrationTests extends ClusterAwareIntegr
 		AirportRepositoryScanConsistencyTest airportRepositoryRP = (AirportRepositoryScanConsistencyTest) ac
 				.getBean("airportRepositoryScanConsistencyTest");
 
-		List<Airport> sizeBeforeTest = airportRepositoryRP.findAll();
-		assertEquals(0, sizeBeforeTest.size());
+		Iterable<Airport> sizeBeforeTest = airportRepositoryRP.findAll();
+		assertFalse(sizeBeforeTest.iterator().hasNext());
 
 		Airport vie = new Airport("airports::vie", "vie", "low9");
 		Airport saved = airportRepositoryRP.save(vie);
-		List<Airport> allSaved = airportRepositoryRP.findAll();
+		Iterable<Airport> allSaved = airportRepositoryRP.findAll();
 		couchbaseTemplate.removeById(Airport.class).one(saved.getId());
-		assertEquals(1, allSaved.size(), "should have found 1 airport");
+		assertTrue(allSaved.iterator().hasNext(), "should have found 1 airport");
 	}
 
 	@Test
@@ -646,13 +655,14 @@ public class CouchbaseRepositoryQueryIntegrationTests extends ClusterAwareIntegr
 			airportRepository.saveAll(
 					Arrays.stream(iatas).map((iata) -> new Airport("airports::" + iata, iata, iata.toLowerCase(Locale.ROOT)))
 							.collect(Collectors.toSet()));
-			List<Airport> airports = airportRepository.withOptions(QueryOptions.queryOptions().scanConsistency(REQUEST_PLUS))
-					.findAll(Sort.by("iata"));
+			Iterable<Airport> airports = airportRepository
+					.withOptions(QueryOptions.queryOptions().scanConsistency(REQUEST_PLUS)).findAll(Sort.by("iata"));
 			String[] sortedIatas = iatas.clone();
 			System.out.println("" + iatas.length + " " + sortedIatas.length);
 			Arrays.sort(sortedIatas);
+			Iterator<Airport> it = airports.iterator();
 			for (int i = 0; i < sortedIatas.length; i++) {
-				assertEquals(sortedIatas[i], airports.get(i).getIata());
+				assertEquals(sortedIatas[i], it.next().getIata());
 			}
 		} finally {
 			airportRepository
