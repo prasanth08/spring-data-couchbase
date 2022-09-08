@@ -30,8 +30,6 @@ import org.joda.time.DateTime;
 import org.springframework.data.annotation.PersistenceConstructor;
 import org.springframework.data.annotation.TypeAlias;
 import org.springframework.data.annotation.Version;
-import org.springframework.data.convert.ValueConverter;
-import org.springframework.data.couchbase.core.convert.CryptoConverter;
 import org.springframework.data.couchbase.core.mapping.Document;
 
 import com.couchbase.client.java.encryption.annotation.Encrypted;
@@ -74,20 +72,31 @@ public class UserEncrypted extends AbstractUser implements Serializable {
 		this.encryptedField = encryptedField;
 	}
 
+	//com.fasterxml.jackson.databind.exc.InvalidDefinitionException: Joda date/time type `org.joda.time.DateTime`
+	// not supported by default: add Module "com.fasterxml.jackson.datatype:jackson-datatype-joda" to enable handling
+	@Encrypted public DateTime encDateTime = DateTime.now();
+	public DateTime plainDateTime = DateTime.now();
+	public Date plainDate = Date.from(Instant.now());
+
 	@Version protected long version;
-	@Encrypted @ValueConverter(CryptoConverter.class) public String encryptedField;
-	@Encrypted @ValueConverter(CryptoConverter.class) public Integer encInteger = 1;
-	@Encrypted @ValueConverter(CryptoConverter.class) public Long encLong = Long.valueOf(1);
-	@Encrypted @ValueConverter(CryptoConverter.class) public Boolean encBoolean = Boolean.TRUE;
-	@Encrypted @ValueConverter(CryptoConverter.class) public BigInteger encBigInteger= new BigInteger("123");
-	@Encrypted @ValueConverter(CryptoConverter.class) public BigDecimal encBigDecimal = new BigDecimal("456");
-	@Encrypted @ValueConverter(CryptoConverter.class) public UUID encUUID = UUID.randomUUID();
-	@Encrypted @ValueConverter(CryptoConverter.class) public Date encDate = Date.from(Instant.now());
-	//@Encrypted @ValueConverter(CryptoConverter.class) public DateTime encDateTime = DateTime.now();
+	@Encrypted public String encryptedField;
+	@Encrypted public Integer encInteger = 1;
+	@Encrypted public Long encLong = Long.valueOf(1);
+	@Encrypted public Boolean encBoolean = Boolean.TRUE;
+	@Encrypted public BigInteger encBigInteger = new BigInteger("123");
+	@Encrypted public BigDecimal encBigDecimal = new BigDecimal("456");
+
+	@Encrypted public UUID encUUID = UUID.randomUUID();
+	// Couchbase JavaSDK won't convert java.util.DateTime
+	@Encrypted public Date encDate = Date.from(Instant.now());
+	//com.fasterxml.jackson.databind.exc.InvalidDefinitionException: Joda date/time type `org.joda.time.DateTime`
+	// not supported by default: add Module "com.fasterxml.jackson.datatype:jackson-datatype-joda" to enable handling
+	//@Encrypted public DateTime encDateTime = DateTime.now();
+
 
 	public List nicknames = List.of("Happy", "Sleepy");
 
-	@Encrypted @ValueConverter(CryptoConverter.class) public Address encAddress = new Address();
+	@Encrypted public Address encAddress = new Address();
 
 	public Address homeAddress = null;
 	public List<Address> addresses = new ArrayList<>();

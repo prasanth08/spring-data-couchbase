@@ -17,7 +17,6 @@
 package org.springframework.data.couchbase.core.convert;
 
 import java.util.Collections;
-import java.util.Map;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.convert.ConversionService;
@@ -117,12 +116,9 @@ public abstract class AbstractCouchbaseConverter implements CouchbaseConverter, 
 					.getValueConverter(prop).write(value, new CouchbaseConversionContext(prop, (MappingCouchbaseConverter)this, accessor));
 			return encrypted;
 		}
-		Class<?> targetClass = Object.class;
+		Class<?> targetClass = this.conversions.getCustomWriteTarget(value.getClass()).orElse(null);
 
-		if (prop.findAnnotation(com.couchbase.client.java.encryption.annotation.Encrypted.class) != null) {
-			targetClass = Map.class;
-		}
-		boolean canConvert = this.conversionService.canConvert(new TypeDescriptor(prop.getField()),
+		boolean canConvert = targetClass == null ? false : this.conversionService.canConvert(new TypeDescriptor(prop.getField()),
 				TypeDescriptor.valueOf(targetClass));
 		if (canConvert) {
 			return this.conversionService.convert(value, new TypeDescriptor(prop.getField()),
@@ -141,33 +137,22 @@ public abstract class AbstractCouchbaseConverter implements CouchbaseConverter, 
 	/**
 	 * This convertForWriteIfNeeded takes a property and accessor so that the annotations can be accessed (ie. @Encrypted)
 	 *
-	 * @param prop the property to be converted to the class that would actually be stored.
+	 * @param prop     the property to be converted to the class that would actually be stored.
 	 * @param accessor the property accessor
 	 * @return
 	 */
 //@Override
-	public Object convertForWriteIfNeeded2(CouchbasePersistentProperty prop, ConvertingPropertyAccessor<Object> accessor) {
+	public Object convertForWriteIfNeeded2(CouchbasePersistentProperty prop, ConvertingPropertyAccessor<Object> accessor, Class<?> targetType) {
 		Object value = accessor.getProperty(prop, prop.getType());
 		if (value == null) {
 			return null;
 		}
-		/*
-		if (conversions.hasValueConverter(prop)) {
-			CouchbaseDocument encrypted = (CouchbaseDocument) conversions.getPropertyValueConversions()
-					.getValueConverter(prop).write(value, new CouchbaseConversionContext(prop, (MappingCouchbaseConverter)this, accessor));
-			return encrypted;
-		}
-		 */
-		Class<?> targetClass = Object.class;
 
-		if (prop.findAnnotation(com.couchbase.client.java.encryption.annotation.Encrypted.class) != null) {
-			targetClass = Map.class;
-		}
 		boolean canConvert = this.conversionService.canConvert(new TypeDescriptor(prop.getField()),
-				TypeDescriptor.valueOf(targetClass));
+				TypeDescriptor.valueOf(targetType));
 		if (canConvert) {
 			return this.conversionService.convert(value, new TypeDescriptor(prop.getField()),
-					TypeDescriptor.valueOf(targetClass));
+					TypeDescriptor.valueOf(targetType));
 		}
 
 		Object result = this.conversions.getCustomWriteTarget(prop.getType()) //

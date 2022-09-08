@@ -34,6 +34,8 @@ import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.joda.JodaModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -109,16 +111,25 @@ public class CouchbaseRepositoryFieldLevelEncryptionIntegrationTests extends Clu
 		userEncryptedRepository.save(user);
 		Optional<UserEncrypted> found = userEncryptedRepository.findById(user.getId());
 		assertTrue(found.isPresent());
-		System.err.println(found.get());
+		System.err.println("Found: "+found.get());
 		found.ifPresent(u -> assertEquals(user, u));
 		assertTrue(userEncryptedRepository.existsById(user.getId()));
+
+		clientFactory.getCluster().bucket(config().bucketname()).defaultCollection().insert(user.getId().toUpperCase(), user);
+		clientFactory.getCluster().bucket(config().bucketname()).defaultCollection()
+				.get(user.getId().toUpperCase()).contentAs(UserEncrypted.class);
 
 		UserEncrypted sdkUser = clientFactory.getCluster().bucket(config().bucketname()).defaultCollection()
 				.get(user.getId()).contentAs(UserEncrypted.class);
 		System.err.println("user:   : " + user);
 		sdkUser.setId(user.getId());
 		sdkUser.setVersion(user.getVersion());
+		assertTrue(user.encDateTime.equals( sdkUser.encDateTime));
 		System.err.println("sdkUser : " + sdkUser);
+		assertEquals(user.plainDateTime, found.get().plainDateTime);
+		assertEquals(user.plainDateTime, sdkUser.plainDateTime);
+		assertEquals(user.encDateTime, found.get().encDateTime);
+		assertEquals(user.encDateTime, sdkUser.encDateTime);
 		assertEquals(user, sdkUser);
 		// userEncryptedRepository.delete(user);
 	}
@@ -145,6 +156,13 @@ public class CouchbaseRepositoryFieldLevelEncryptionIntegrationTests extends Clu
 		@Override
 		public String getBucketName() {
 			return bucketName();
+		}
+
+		@Override
+		public ObjectMapper couchbaseObjectMapper(CryptoManager cryptoManager){
+			ObjectMapper om = super.couchbaseObjectMapper(cryptoManager);
+			om.registerModule(new JodaModule());
+			return om;
 		}
 
 		@Override

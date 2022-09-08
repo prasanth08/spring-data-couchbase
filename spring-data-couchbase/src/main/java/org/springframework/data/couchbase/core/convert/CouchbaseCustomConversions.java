@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import com.couchbase.client.java.encryption.annotation.Encrypted;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.convert.converter.ConverterFactory;
 import org.springframework.core.convert.converter.GenericConverter;
@@ -40,7 +41,9 @@ import org.springframework.data.convert.PropertyValueConverterFactory;
 import org.springframework.data.convert.PropertyValueConverterRegistrar;
 import org.springframework.data.convert.SimplePropertyValueConversions;
 import org.springframework.data.couchbase.core.mapping.CouchbasePersistentProperty;
+import org.springframework.data.mapping.PersistentProperty;
 import org.springframework.data.mapping.model.SimpleTypeHolder;
+import org.springframework.lang.NonNull;
 import org.springframework.util.Assert;
 
 import com.couchbase.client.core.encryption.CryptoManager;
@@ -65,8 +68,6 @@ public class CouchbaseCustomConversions extends org.springframework.data.convert
 	private static final StoreConversions STORE_CONVERSIONS;
 
 	private static final List<Object> STORE_CONVERTERS;
-
-	private CryptoManager cryptoManager;
 
 	static {
 
@@ -108,13 +109,18 @@ public class CouchbaseCustomConversions extends org.springframework.data.convert
 	 * @since 2.3
 	 */
 	public static CouchbaseCustomConversions create(Consumer<CouchbaseConverterConfigurationAdapter> configurer) {
-
 		CouchbaseConverterConfigurationAdapter adapter = new CouchbaseConverterConfigurationAdapter();
 		configurer.accept(adapter);
-
 		return new CouchbaseCustomConversions(adapter);
 	}
 
+	@Override
+	public boolean hasValueConverter(PersistentProperty<?> property) {
+		if(property.findAnnotation(Encrypted.class) != null){
+			return true;
+		}
+		return super.hasValueConverter(property);
+	}
 	/**
 	 * {@link CouchbaseConverterConfigurationAdapter} encapsulates creation of
 	 * {@link org.springframework.data.convert.CustomConversions.ConverterConfiguration} with CouchbaseDB specifics.
@@ -281,7 +287,7 @@ public class CouchbaseCustomConversions extends org.springframework.data.convert
 			converters.addAll(STORE_CONVERTERS);
 
 			StoreConversions storeConversions = StoreConversions.of(new SimpleTypeHolder(JAVA_DRIVER_TIME_SIMPLE_TYPES,
-					SimpleTypeHolder.DEFAULT /* CouchbaseSimpoleTypes.HOLDER */), converters);
+					SimpleTypeHolder.DEFAULT /* CouchbaseSimpleTypes.HOLDER */), converters);
 
 			return new ConverterConfiguration(storeConversions, this.customConverters, convertiblePair -> {
 

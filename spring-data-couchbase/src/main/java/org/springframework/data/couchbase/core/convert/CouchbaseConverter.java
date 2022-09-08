@@ -84,6 +84,7 @@ public interface CouchbaseConverter
 
 	/**
 	 * return the conversions
+	 * 
 	 * @return conversions
 	 */
 	CustomConversions getConversions();

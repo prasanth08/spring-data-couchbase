@@ -38,8 +38,6 @@ import org.springframework.core.convert.TypeDescriptor;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.convert.CustomConversions;
 import org.springframework.data.convert.PropertyValueConverter;
-import org.springframework.data.couchbase.core.convert.translation.JacksonTranslationService;
-import org.springframework.data.couchbase.core.convert.translation.TranslationService;
 import org.springframework.data.couchbase.core.mapping.CouchbaseDocument;
 import org.springframework.data.couchbase.core.mapping.CouchbaseList;
 import org.springframework.data.couchbase.core.mapping.CouchbaseMappingContext;
@@ -563,10 +561,10 @@ public class MappingCouchbaseConverter extends AbstractCouchbaseConverter implem
 			}
 		});
 
-		if (prop != null && conversions.hasValueConverter(prop)) {
-			Map<String, Object> encrypted = (Map<String, Object>) conversions.getPropertyValueConversions()
+		if (prop != null && conversions.hasValueConverter(prop)) { // whole entity is encrypted
+			Map<String, Object> propertyConverted = (Map<String, Object>) conversions.getPropertyValueConversions()
 					.getValueConverter(prop).write(source, new CouchbaseConversionContext(prop, this, accessor));
-			target.setContent(JsonObject.from(encrypted));
+			target.setContent(JsonObject.from(propertyConverted));
 		}
 	}
 
@@ -620,7 +618,7 @@ public class MappingCouchbaseConverter extends AbstractCouchbaseConverter implem
 	}
 
 	/**
-	 * Helper method to write a property into the target document.
+	 * Helper method to write a non-simple property into the target document.
 	 *
 	 * @param source the source object.
 	 * @param target the target document.
@@ -633,7 +631,7 @@ public class MappingCouchbaseConverter extends AbstractCouchbaseConverter implem
 			return;
 		}
 
-		if (conversions.hasValueConverter(prop)) {
+		if (conversions.hasValueConverter(prop)) { // property is encrypted
 			Object encrypted = conversions.getPropertyValueConversions().getValueConverter(prop).write(source,
 					new CouchbaseConversionContext(prop, this, accessor));
 			target.put(maybeMangle(prop), encrypted);
@@ -840,14 +838,31 @@ public class MappingCouchbaseConverter extends AbstractCouchbaseConverter implem
 		return convertForWriteIfNeeded(value); // cannot access annotations
 	}
 
+	/**
+	 * This does process PropertyValueConversions
+	 * 
+	 * @param value
+	 * @param accessor
+	 * @return
+	 */
 	public Object getPotentiallyConvertedSimpleWrite(final CouchbasePersistentProperty value,
 			ConvertingPropertyAccessor<Object> accessor) {
 		return convertForWriteIfNeeded(value, accessor); // can access annotations
 	}
 
+	/**
+	 * This does not process PropertyValueConversions as they have already been processed and we need to avoid endless
+	 * recursion.
+	 *
+	 * @param value
+	 * @param accessor
+	 * @return
+	 */
 	public Object getPotentiallyConvertedSimpleWrite2(final CouchbasePersistentProperty value,
-			ConvertingPropertyAccessor<Object> accessor) {
-		return convertForWriteIfNeeded2(value, accessor); // can access annotations
+			Class<?> targetType, ConvertingPropertyAccessor<Object> accessor) {
+		return convertForWriteIfNeeded2(value,
+				accessor,
+				targetType); // can access annotations
 	}
 
 	/**
@@ -912,8 +927,6 @@ public class MappingCouchbaseConverter extends AbstractCouchbaseConverter implem
 			return (R) getPotentiallyConvertedSimpleRead(value, type.getType()); // type does not have annotations
 		}
 	}
-
-	TranslationService translationService = new JacksonTranslationService();
 
 	/**
 	 * Helper method to read the value based on the PersistentProperty

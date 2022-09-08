@@ -21,7 +21,6 @@ import static com.couchbase.client.java.ClusterOptions.clusterOptions;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -32,7 +31,6 @@ import org.springframework.context.annotation.Role;
 import org.springframework.core.convert.converter.GenericConverter;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.convert.CustomConversions;
-import org.springframework.data.convert.PropertyValueConverterFactory;
 import org.springframework.data.convert.PropertyValueConverterRegistrar;
 import org.springframework.data.convert.SimplePropertyValueConversions;
 import org.springframework.data.couchbase.CouchbaseClientFactory;
@@ -43,7 +41,6 @@ import org.springframework.data.couchbase.core.convert.CouchbaseCustomConversion
 import org.springframework.data.couchbase.core.convert.CouchbasePropertyValueConverterFactory;
 import org.springframework.data.couchbase.core.convert.CryptoConverter;
 import org.springframework.data.couchbase.core.convert.MappingCouchbaseConverter;
-import org.springframework.data.couchbase.core.convert.OtherConverters;
 import org.springframework.data.couchbase.core.convert.translation.JacksonTranslationService;
 import org.springframework.data.couchbase.core.convert.translation.TranslationService;
 import org.springframework.data.couchbase.core.mapping.CouchbaseDocument;
@@ -319,8 +316,7 @@ public abstract class AbstractCouchbaseConfiguration {
 	 *
 	 * @return ObjectMapper
 	 */
-
-	public ObjectMapper couchbaseObjectMapper() {
+   private ObjectMapper couchbaseObjectMapper() {
 		return couchbaseObjectMapper(cryptoManager());
 	}
 
@@ -424,25 +420,24 @@ public abstract class AbstractCouchbaseConfiguration {
 	 */
 	public CustomConversions customConversions(CryptoManager cryptoManager) {
 		List<GenericConverter> newConverters = new ArrayList();
-		// the cryptoConverters take an argument, so they cannot be created in the
-		// static block of CouchbaseCustomConversions. And they must be set before the super() constructor
-		// in CouchbaseCustomConversions
 		CustomConversions customConversions = CouchbaseCustomConversions.create( configurationAdapter -> {
 					SimplePropertyValueConversions valueConversions = new SimplePropertyValueConversions();
 					valueConversions.setConverterFactory(new CouchbasePropertyValueConverterFactory(cryptoManager));
-					valueConversions.setValueConverterRegistry(new PropertyValueConverterRegistrar()
-							.registerConverter(CouchbaseDocument.class, "", new CryptoConverter(cryptoManager))// unnecessary?
-							.buildRegistry());
+					valueConversions.setValueConverterRegistry(new PropertyValueConverterRegistrar().buildRegistry());
 			configurationAdapter.setPropertyValueConversions(valueConversions);
 			configurationAdapter.registerConverters(newConverters);
 				});
-
 		return customConversions;
 	}
 
 	@Bean
 	protected CryptoManager cryptoManager() {
 		return null;
+	}
+
+	@Bean
+	protected CryptoConverter cryptoConverter(CryptoManager cryptoManager) {
+		return cryptoManager == null ? null : new CryptoConverter(cryptoManager);
 	}
 
 	/**
